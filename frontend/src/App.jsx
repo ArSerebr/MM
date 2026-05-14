@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { apiUrl } from './api.js'
 import './App.css'
 
 const REDIRECT_URL = 'https://mosmolodezh.ru/'
@@ -233,20 +234,23 @@ export default function App() {
     appendLog('INFO', 'Отправка шардов на верификацию…')
 
     try {
-      const res = await fetch('/api/restore', {
+      const res = await fetch(apiUrl('/api/restore'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ keys }),
       })
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        const detail = data.detail
-        const msg = typeof detail === 'string'
-          ? detail
-          : Array.isArray(detail)
-            ? detail.map((e) => e.msg).join('; ')
-            : 'Ключи отклонены'
+        const text = await res.text()
+        let msg = 'Ключи отклонены'
+        try {
+          const data = JSON.parse(text)
+          const detail = data.detail
+          if (typeof detail === 'string') msg = detail
+          else if (Array.isArray(detail)) msg = detail.map((e) => e.msg).join('; ')
+        } catch {
+          if (text) msg = `Ошибка сервера (${res.status})`
+        }
         appendLog('ERR ', msg)
         return
       }
