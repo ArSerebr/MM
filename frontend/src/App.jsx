@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { apiUrl } from './api.js'
 import './App.css'
 
@@ -22,40 +22,96 @@ const CHART_W = 400
 const CHART_H = 110
 const PAD = { t: 8, r: 8, b: 18, l: 32 }
 
-const SCARY_LOGS = [
-  '[CRIT] Несанкционированный доступ к ядру',
-  '[ALERT] Блокировка периметра не удалась',
-  '[INTR] Обнаружена подмена пакетов',
-  '[LEAK] Утечка данных: сектор 0x7F',
-  '[ROOT] Попытка эскалации привилегий',
-  '[SCAN] Внешний скан портов активен',
+const PANIC_TEMPLATES = [
+  'kernel: BUG: unable to handle kernel paging request at 0x{hex}',
+  'systemd[1]: auth-core.service: Main process exited, code=exited, status=1/FAILURE',
+  'sshd[{n}]: error: maximum authentication attempts exceeded for root',
+  'iptables: DROP IN=eth0 SRC=185.{n}.{n}.{n} PROTO=TCP DPT=22',
+  'cryptomodule: FATAL — key derivation failed (errno=EINVAL)',
+  'nginx: [error] upstream prematurely closed connection while reading response',
+  'audit: AVC denied { op } for pid={n} comm="intruder"',
+  'OOM killer: Out of memory: Kill process {n} (python3) score 900',
+  'rsyslogd: imuxsock lost {n} messages from pid={n} due to rate-limiting',
+  'recovery-node: segmentation fault at 0x{hex} ip 00007f{n}',
+  'firewall: INTRUSION DETECTED — sector 0x{hex} checksum mismatch',
+  'db_core: connection pool exhausted — 0 available connections',
+  'tls_handshake: certificate verify failed (self signed certificate)',
+  'init: target Recovery.target failed',
+  'watchdog: BUG: soft lockup - CPU#0 stuck for 23s!',
 ]
 
-function GlitchText({ children, className = '' }) {
+function randHex(len = 8) {
+  return Array.from({ length: len }, () => Math.floor(Math.random() * 16).toString(16)).join('')
+}
+
+function randomPanicLine() {
+  const tpl = PANIC_TEMPLATES[Math.floor(Math.random() * PANIC_TEMPLATES.length)]
+  return tpl
+    .replace(/\{hex\}/g, randHex())
+    .replace(/\{n\}/g, () => String(Math.floor(Math.random() * 9000) + 1000))
+    .replace(/\{op\}/g, ['read', 'write', 'exec'][Math.floor(Math.random() * 3)])
+}
+
+function PanicConsole() {
+  const [lines, setLines] = useState([
+    { id: 0, text: '[kernel] ---[ end Kernel panic - not syncing: Fatal exception ]---', err: true },
+    { id: 1, text: 'systemd-journald: Missed {n} kernel messages'.replace('{n}', '1847'), err: false },
+  ])
+  const bodyRef = useRef(null)
+  const idRef = useRef(2)
+
+  useEffect(() => {
+    const tick = () => {
+      const burst = Math.random() > 0.7 ? 2 : 1
+      const batch = Array.from({ length: burst }, () => {
+        const id = idRef.current++
+        const text = randomPanicLine()
+        const err = /FATAL|error|failed|denied|fault|panic|DROP|KILL|INTRUSION/i.test(text)
+        return { id, text, err }
+      })
+      setLines((prev) => [...prev, ...batch].slice(-40))
+    }
+
+    tick()
+    const fast = setInterval(tick, 420)
+    const burst = setInterval(() => {
+      const batch = Array.from({ length: 4 }, () => {
+        const id = idRef.current++
+        return { id, text: randomPanicLine(), err: true }
+      })
+      setLines((prev) => [...prev, ...batch].slice(-40))
+    }, 5000)
+
+    return () => {
+      clearInterval(fast)
+      clearInterval(burst)
+    }
+  }, [])
+
+  useEffect(() => {
+    const el = bodyRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [lines])
+
   return (
-    <span className={`glitch-text ${className}`} data-text={children}>
-      {children}
-    </span>
+    <section className="panic-console">
+      <div className="panic-console-head">
+        <span className="panel-tag">KERNEL</span>
+        <span className="panic-console-title">Аварийный вывод системы</span>
+        <span className="panic-console-badge">FLOOD</span>
+      </div>
+      <div className="panic-console-body" ref={bodyRef}>
+        {lines.map((line) => (
+          <div key={line.id} className={`panic-line${line.err ? ' panic-line-err' : ''}`}>
+            <span className="panic-ts">{new Date().toLocaleTimeString('ru-RU')}</span>
+            {line.text}
+          </div>
+        ))}
+      </div>
+    </section>
   )
 }
 
-function ThreatOverlay({ glitch, flash }) {
-  return (
-    <>
-      <div className="vignette" />
-      <div className="noise-overlay" />
-      <div className={`red-flash${flash ? ' active' : ''}`} />
-      <div className={`glitch-slice${glitch ? ' active' : ''}`} />
-      <div className="corruption-rain" aria-hidden="true">
-        {Array.from({ length: 12 }, (_, i) => (
-          <span key={i} className="corruption-char" style={{ '--i': i }}>
-            {['0xFF', 'ERR', 'NULL', '0x00', 'KILL', '!!', 'CORRUPT', 'LEAK'][i % 8]}
-          </span>
-        ))}
-      </div>
-    </>
-  )
-}
 function generateSeries(crashAt, seed) {
   return Array.from({ length: POINTS }, (_, i) => {
     const noise = ((seed * (i + 1) * 7) % 11) / 11
@@ -87,7 +143,7 @@ function UptimeChart({ label, host, uptime, crashAt, seed }) {
   const crashX = toX(crashAt)
 
   return (
-    <div className="chart-card chart-danger">
+    <div className="chart-card">
       <div className="chart-card-head">
         <div className="chart-card-title">
           <span className="chart-label">{label}</span>
@@ -106,16 +162,8 @@ function UptimeChart({ label, host, uptime, crashAt, seed }) {
         </defs>
         {[0, 50, 100].map((v) => (
           <g key={v}>
-            <line
-              x1={PAD.l}
-              y1={toY(v)}
-              x2={CHART_W - PAD.r}
-              y2={toY(v)}
-              className="chart-grid"
-            />
-            <text x={2} y={toY(v) + 3} className="chart-axis-y">
-              {v}%
-            </text>
+            <line x1={PAD.l} y1={toY(v)} x2={CHART_W - PAD.r} y2={toY(v)} className="chart-grid" />
+            <text x={2} y={toY(v) + 3} className="chart-axis-y">{v}%</text>
           </g>
         ))}
         <text x={PAD.l} y={CHART_H - 2} className="chart-axis-x">−24ч</text>
@@ -169,51 +217,15 @@ export default function App() {
     '[INFO] Нужны 4 шарда',
   ])
   const [tick, setTick] = useState(0)
-  const [glitch, setGlitch] = useState(false)
-  const [flash, setFlash] = useState(false)
-  const [shake, setShake] = useState(false)
-
-  const triggerThreat = useCallback(() => {
-    setGlitch(true)
-    setFlash(true)
-    setShake(true)
-    setTimeout(() => setGlitch(false), 500)
-    setTimeout(() => setFlash(false), 350)
-    setTimeout(() => setShake(false), 600)
-  }, [])
 
   const appendLog = useCallback((level, message) => {
     const time = new Date().toLocaleTimeString('ru-RU')
     setLogLines((prev) => [...prev, `[${level}] ${time} — ${message}`])
-    if (level.trim() === 'ERR') triggerThreat()
-  }, [triggerThreat])
+  }, [])
 
   useEffect(() => {
     const t = setInterval(() => setTick((v) => v + 1), 1000)
     return () => clearInterval(t)
-  }, [])
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      const msg = SCARY_LOGS[Math.floor(Math.random() * SCARY_LOGS.length)]
-      const time = new Date().toLocaleTimeString('ru-RU')
-      setLogLines((prev) => [...prev.slice(-14), `${msg} // ${time}`])
-      if (Math.random() > 0.55) {
-        setGlitch(true)
-        setTimeout(() => setGlitch(false), 220)
-      }
-    }, 8000)
-    return () => clearInterval(id)
-  }, [])
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      if (Math.random() > 0.65) {
-        setFlash(true)
-        setTimeout(() => setFlash(false), 180)
-      }
-    }, 11000)
-    return () => clearInterval(id)
   }, [])
 
   const handleKeyChange = (index, value) => {
@@ -271,29 +283,25 @@ export default function App() {
   const integrity = success ? 100 : Math.min(88, 12 + filledCount * 18 + (tick % 3))
 
   return (
-    <div className={`app${shake ? ' shake' : ''}${glitch ? ' screen-glitch' : ''}`}>
-      <ThreatOverlay glitch={glitch} flash={flash} />
+    <div className="app">
       <div className="scanlines" />
-      <div className="crt-flicker" />
       <div className="grid-bg" />
 
       <div className="warning-ticker">
         <div className="warning-ticker-track">
-          <span>⚠ СИСТЕМА СКОМПРОМЕТИРОВАНА — НЕМЕДЛЕННО ВВЕДИТЕ КЛЮЧИ ВОССТАНОВЛЕНИЯ — ВНЕШНЕЕ ВТОРЖЕНИЕ АКТИВНО — </span>
-          <span>⚠ СИСТЕМА СКОМПРОМЕТИРОВАНА — НЕМЕДЛЕННО ВВЕДИТЕ КЛЮЧИ ВОССТАНОВЛЕНИЯ — ВНЕШНЕЕ ВТОРЖЕНИЕ АКТИВНО — </span>
+          <span>⚠ СИСТЕМА СКОМПРОМЕТИРОВАНА — ВВЕДИТЕ КЛЮЧИ ВОССТАНОВЛЕНИЯ — </span>
+          <span>⚠ СИСТЕМА СКОМПРОМЕТИРОВАНА — ВВЕДИТЕ КЛЮЧИ ВОССТАНОВЛЕНИЯ — </span>
         </div>
       </div>
 
       <header className="header">
         <div className="header-left">
           <span className="status-dot" />
-          <GlitchText className="header-status">КРИТИЧЕСКИЙ СБОЙ</GlitchText>
+          <span className="header-status">КРИТИЧЕСКИЙ СБОЙ</span>
           <span className="header-incident">INCIDENT ACTIVE</span>
         </div>
         <div className="header-right">
-          <span className="header-integrity">
-            Целостность {integrity}%
-          </span>
+          <span className="header-integrity">Целостность {integrity}%</span>
           <span className="header-time">{new Date().toLocaleTimeString('ru-RU')}</span>
         </div>
       </header>
@@ -311,8 +319,10 @@ export default function App() {
           </div>
         </section>
 
+        <PanicConsole />
+
         <div className="bottom-grid">
-          <section className="panel keys-panel panel-danger">
+          <section className="panel keys-panel">
             <div className="panel-head-row">
               <div>
                 <span className="panel-tag">RECOVERY</span>
@@ -338,11 +348,7 @@ export default function App() {
               ))}
             </div>
 
-            <button
-              className="restore-btn"
-              onClick={handleRestore}
-              disabled={loading}
-            >
+            <button className="restore-btn" onClick={handleRestore} disabled={loading}>
               {loading ? 'Верификация…' : '▶ ВОССТАНОВИТЬ СИСТЕМУ'}
             </button>
           </section>
@@ -360,8 +366,7 @@ export default function App() {
                   key={i}
                   className={`log-line${
                     line.includes('[ERR ') ? ' log-line-err' :
-                    line.includes('[OK  ') ? ' log-line-ok' :
-                    /\[CRIT\]|\[ALERT\]|\[INTR\]|\[LEAK\]|\[ROOT\]/.test(line) ? ' log-line-warn' : ''
+                    line.includes('[OK  ') ? ' log-line-ok' : ''
                   }`}
                 >
                   {line}
