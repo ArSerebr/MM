@@ -1,0 +1,40 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg: #0a0e14;
+  --bg-panel: #0d1117;
+  --border: #1a3a2a;
+  --green: #39ff14;
+  --green-dim: #1a8f0a;
+  --red: #ff3131;
+  --amber: #ffb000;
+  --cyan: #00e5ff;
+  --text: #c9d1d9;
+  --text-dim: #6e7681;
+  --font-mono: 'JetBrains Mono', 'Share Tech Mono', monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-mono);
+  background: var(--bg);
+  color: var(--text);
+  overflow-x: hidden;
+}
+
+::selection {
+  background: var(--green);
+  color: var(--bg);
+}
