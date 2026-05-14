@@ -31,11 +31,13 @@ class RestoreResponse(BaseModel):
     message: str
 
 
+@app.get("/health")
 @app.get("/api/health")
 def health():
     return {"status": "compromised"}
 
 
+@app.post("/restore", response_model=RestoreResponse)
 @app.post("/api/restore", response_model=RestoreResponse)
 def restore_system(payload: RestoreRequest):
     provided = [k.strip() for k in payload.keys]

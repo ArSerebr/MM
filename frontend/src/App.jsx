@@ -234,7 +234,7 @@ export default function App() {
     appendLog('INFO', 'Отправка шардов на верификацию…')
 
     try {
-      const res = await fetch(apiUrl('/api/restore'), {
+      const res = await fetch(apiUrl('/restore'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ keys }),
@@ -246,8 +246,11 @@ export default function App() {
         try {
           const data = JSON.parse(text)
           const detail = data.detail
-          if (typeof detail === 'string') msg = detail
-          else if (Array.isArray(detail)) msg = detail.map((e) => e.msg).join('; ')
+          if (typeof detail === 'string') {
+            msg = detail === 'Not Found'
+              ? 'API не найден — проверьте деплой бэкенда на Vercel'
+              : detail
+          } else if (Array.isArray(detail)) msg = detail.map((e) => e.msg).join('; ')
         } catch {
           if (text) msg = `Ошибка сервера (${res.status})`
         }
