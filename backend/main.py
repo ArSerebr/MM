@@ -1,12 +1,8 @@
-import os
 from typing import List
 
-from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-
-load_dotenv()
 
 app = FastAPI(title="Quest Recovery System")
 
@@ -18,17 +14,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-def get_secret_keys() -> List[str]:
-    keys = [
-        os.getenv("SECRET_KEY_1", ""),
-        os.getenv("SECRET_KEY_2", ""),
-        os.getenv("SECRET_KEY_3", ""),
-        os.getenv("SECRET_KEY_4", ""),
-    ]
-    if not all(keys):
-        raise RuntimeError("All SECRET_KEY_1..4 environment variables must be set")
-    return keys
+SECRET_KEYS = [
+    "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+    "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35",
+    "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
+    "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
+]
 
 
 class RestoreRequest(BaseModel):
@@ -47,10 +38,9 @@ def health():
 
 @app.post("/api/restore", response_model=RestoreResponse)
 def restore_system(payload: RestoreRequest):
-    expected = get_secret_keys()
     provided = [k.strip() for k in payload.keys]
 
-    if provided == expected:
+    if provided == SECRET_KEYS:
         return RestoreResponse(
             success=True,
             message="Всё круто! Система восстановлена",

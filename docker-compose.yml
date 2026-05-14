@@ -1,12 +1,6 @@
 services:
   backend:
     build: ./backend
-    env_file: .env
-    environment:
-      - SECRET_KEY_1=${SECRET_KEY_1}
-      - SECRET_KEY_2=${SECRET_KEY_2}
-      - SECRET_KEY_3=${SECRET_KEY_3}
-      - SECRET_KEY_4=${SECRET_KEY_4}
     expose:
       - "8000"
     restart: unless-stopped

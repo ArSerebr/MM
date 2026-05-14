@@ -21,6 +21,40 @@ const CHART_W = 400
 const CHART_H = 110
 const PAD = { t: 8, r: 8, b: 18, l: 32 }
 
+const SCARY_LOGS = [
+  '[CRIT] Несанкционированный доступ к ядру',
+  '[ALERT] Блокировка периметра не удалась',
+  '[INTR] Обнаружена подмена пакетов',
+  '[LEAK] Утечка данных: сектор 0x7F',
+  '[ROOT] Попытка эскалации привилегий',
+  '[SCAN] Внешний скан портов активен',
+]
+
+function GlitchText({ children, className = '' }) {
+  return (
+    <span className={`glitch-text ${className}`} data-text={children}>
+      {children}
+    </span>
+  )
+}
+
+function ThreatOverlay({ glitch, flash }) {
+  return (
+    <>
+      <div className="vignette" />
+      <div className="noise-overlay" />
+      <div className={`red-flash${flash ? ' active' : ''}`} />
+      <div className={`glitch-slice${glitch ? ' active' : ''}`} />
+      <div className="corruption-rain" aria-hidden="true">
+        {Array.from({ length: 12 }, (_, i) => (
+          <span key={i} className="corruption-char" style={{ '--i': i }}>
+            {['0xFF', 'ERR', 'NULL', '0x00', 'KILL', '!!', 'CORRUPT', 'LEAK'][i % 8]}
+          </span>
+        ))}
+      </div>
+    </>
+  )
+}
 function generateSeries(crashAt, seed) {
   return Array.from({ length: POINTS }, (_, i) => {
     const noise = ((seed * (i + 1) * 7) % 11) / 11
@@ -52,7 +86,7 @@ function UptimeChart({ label, host, uptime, crashAt, seed }) {
   const crashX = toX(crashAt)
 
   return (
-    <div className="chart-card">
+    <div className="chart-card chart-danger">
       <div className="chart-card-head">
         <div className="chart-card-title">
           <span className="chart-label">{label}</span>
@@ -134,15 +168,51 @@ export default function App() {
     '[INFO] Нужны 4 шарда',
   ])
   const [tick, setTick] = useState(0)
+  const [glitch, setGlitch] = useState(false)
+  const [flash, setFlash] = useState(false)
+  const [shake, setShake] = useState(false)
+
+  const triggerThreat = useCallback(() => {
+    setGlitch(true)
+    setFlash(true)
+    setShake(true)
+    setTimeout(() => setGlitch(false), 500)
+    setTimeout(() => setFlash(false), 350)
+    setTimeout(() => setShake(false), 600)
+  }, [])
 
   const appendLog = useCallback((level, message) => {
     const time = new Date().toLocaleTimeString('ru-RU')
     setLogLines((prev) => [...prev, `[${level}] ${time} — ${message}`])
-  }, [])
+    if (level.trim() === 'ERR') triggerThreat()
+  }, [triggerThreat])
 
   useEffect(() => {
     const t = setInterval(() => setTick((v) => v + 1), 1000)
     return () => clearInterval(t)
+  }, [])
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      const msg = SCARY_LOGS[Math.floor(Math.random() * SCARY_LOGS.length)]
+      const time = new Date().toLocaleTimeString('ru-RU')
+      setLogLines((prev) => [...prev.slice(-14), `${msg} // ${time}`])
+      if (Math.random() > 0.55) {
+        setGlitch(true)
+        setTimeout(() => setGlitch(false), 220)
+      }
+    }, 8000)
+    return () => clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (Math.random() > 0.65) {
+        setFlash(true)
+        setTimeout(() => setFlash(false), 180)
+      }
+    }, 11000)
+    return () => clearInterval(id)
   }, [])
 
   const handleKeyChange = (index, value) => {
@@ -194,14 +264,23 @@ export default function App() {
   const integrity = success ? 100 : Math.min(88, 12 + filledCount * 18 + (tick % 3))
 
   return (
-    <div className="app">
+    <div className={`app${shake ? ' shake' : ''}${glitch ? ' screen-glitch' : ''}`}>
+      <ThreatOverlay glitch={glitch} flash={flash} />
       <div className="scanlines" />
+      <div className="crt-flicker" />
       <div className="grid-bg" />
+
+      <div className="warning-ticker">
+        <div className="warning-ticker-track">
+          <span>⚠ СИСТЕМА СКОМПРОМЕТИРОВАНА — НЕМЕДЛЕННО ВВЕДИТЕ КЛЮЧИ ВОССТАНОВЛЕНИЯ — ВНЕШНЕЕ ВТОРЖЕНИЕ АКТИВНО — </span>
+          <span>⚠ СИСТЕМА СКОМПРОМЕТИРОВАНА — НЕМЕДЛЕННО ВВЕДИТЕ КЛЮЧИ ВОССТАНОВЛЕНИЯ — ВНЕШНЕЕ ВТОРЖЕНИЕ АКТИВНО — </span>
+        </div>
+      </div>
 
       <header className="header">
         <div className="header-left">
           <span className="status-dot" />
-          <span className="header-status">КРИТИЧЕСКИЙ СБОЙ</span>
+          <GlitchText className="header-status">КРИТИЧЕСКИЙ СБОЙ</GlitchText>
           <span className="header-incident">INCIDENT ACTIVE</span>
         </div>
         <div className="header-right">
@@ -226,7 +305,7 @@ export default function App() {
         </section>
 
         <div className="bottom-grid">
-          <section className="panel keys-panel">
+          <section className="panel keys-panel panel-danger">
             <div className="panel-head-row">
               <div>
                 <span className="panel-tag">RECOVERY</span>
@@ -272,7 +351,11 @@ export default function App() {
               {logLines.map((line, i) => (
                 <div
                   key={i}
-                  className={`log-line${line.includes('[ERR ') ? ' log-line-err' : ''}${line.includes('[OK  ') ? ' log-line-ok' : ''}`}
+                  className={`log-line${
+                    line.includes('[ERR ') ? ' log-line-err' :
+                    line.includes('[OK  ') ? ' log-line-ok' :
+                    /\[CRIT\]|\[ALERT\]|\[INTR\]|\[LEAK\]|\[ROOT\]/.test(line) ? ' log-line-warn' : ''
+                  }`}
                 >
                   {line}
                 </div>
