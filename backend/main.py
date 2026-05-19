@@ -4,7 +4,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-app = FastAPI(title="Quest Recovery System")
+app = FastAPI(title="Система восстановления квеста")
 
 app.add_middleware(
     CORSMiddleware,
@@ -34,7 +34,7 @@ class RestoreResponse(BaseModel):
 @app.get("/health")
 @app.get("/api/health")
 def health():
-    return {"status": "compromised"}
+    return {"status": "скомпрометирована"}
 
 
 @app.post("/restore", response_model=RestoreResponse)

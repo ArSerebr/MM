@@ -13,8 +13,8 @@ const SHARD_LABELS = [
 ]
 
 const UPTIME_SERVICES = [
-  { id: 'auth', label: 'AUTH CORE', host: 'node-auth-01', uptime: '99.1%', crashAt: 40, seed: 3 },
-  { id: 'api', label: 'API GATEWAY', host: 'node-api-03', uptime: '98.9%', crashAt: 39, seed: 7 },
+  { id: 'auth', label: 'ЯДРО АВТОРИЗАЦИИ', host: 'узел-авт-01', uptime: '99.1%', crashAt: 40, seed: 3 },
+  { id: 'api', label: 'ШЛЮЗ ПРИЛОЖЕНИЙ', host: 'узел-прк-03', uptime: '98.9%', crashAt: 39, seed: 7 },
 ]
 
 const POINTS = 48
@@ -23,21 +23,21 @@ const CHART_H = 110
 const PAD = { t: 8, r: 8, b: 18, l: 32 }
 
 const PANIC_TEMPLATES = [
-  'kernel: BUG: unable to handle kernel paging request at 0x{hex}',
-  'systemd[1]: auth-core.service: Main process exited, code=exited, status=1/FAILURE',
-  'sshd[{n}]: error: maximum authentication attempts exceeded for root',
-  'iptables: DROP IN=eth0 SRC=185.{n}.{n}.{n} PROTO=TCP DPT=22',
-  'cryptomodule: FATAL — key derivation failed (errno=EINVAL)',
-  'nginx: [error] upstream prematurely closed connection while reading response',
-  'audit: AVC denied { op } for pid={n} comm="intruder"',
-  'OOM killer: Out of memory: Kill process {n} (python3) score 900',
-  'rsyslogd: imuxsock lost {n} messages from pid={n} due to rate-limiting',
-  'recovery-node: segmentation fault at 0x{hex} ip 00007f{n}',
-  'firewall: INTRUSION DETECTED — sector 0x{hex} checksum mismatch',
-  'db_core: connection pool exhausted — 0 available connections',
-  'tls_handshake: certificate verify failed (self signed certificate)',
-  'init: target Recovery.target failed',
-  'watchdog: BUG: soft lockup - CPU#0 stuck for 23s!',
+  'ядро: СБОЙ: не удалось обработать страничный запрос ядра по адресу 0x{hex}',
+  'systemd[1]: сервис auth-core: основной процесс завершён, код=выход, статус=1/СБОЙ',
+  'sshd[{n}]: ошибка: превышено число попыток входа для суперпользователя',
+  'iptables: БЛОК ВХ=eth0 ИСТ=185.{n}.{n}.{n} ПРОТ=TCP ПОРТ=22',
+  'cryptomodule: КРИТИЧНО — сбой вывода ключа (код=EINVAL)',
+  'nginx: [ошибка] вышестоящий сервер преждевременно закрыл соединение при чтении ответа',
+  'audit: AVC отклонено {op} для pid={n} comm="злоумышленник"',
+  'убийца-OOM: нехватка памяти: убит процесс {n} (python3) приоритет 900',
+  'rsyslogd: imuxsock потеряно {n} сообщений от pid={n} из-за ограничения частоты',
+  'узел-восст: ошибка сегментации по адресу 0x{hex} ip 00007f{n}',
+  'межсетевой-экран: ОБНАРУЖЕНО ВТОРЖЕНИЕ — сектор 0x{hex} несовпадение контрольной суммы',
+  'ядро-БД: пул соединений исчерпан — 0 доступных соединений',
+  'tls-рукопожатие: проверка сертификата не пройдена (самоподписанный сертификат)',
+  'init: цель Восстановление.target не достигнута',
+  'сторож: СБОЙ: мягкая блокировка — CPU#0 зависла на 23 с!',
 ]
 
 function randHex(len = 8) {
@@ -49,13 +49,13 @@ function randomPanicLine() {
   return tpl
     .replace(/\{hex\}/g, randHex())
     .replace(/\{n\}/g, () => String(Math.floor(Math.random() * 9000) + 1000))
-    .replace(/\{op\}/g, ['read', 'write', 'exec'][Math.floor(Math.random() * 3)])
+    .replace(/\{op\}/g, ['чтение', 'запись', 'исполнение'][Math.floor(Math.random() * 3)])
 }
 
 function PanicConsole() {
   const [lines, setLines] = useState([
-    { id: 0, text: '[kernel] ---[ end Kernel panic - not syncing: Fatal exception ]---', err: true },
-    { id: 1, text: 'systemd-journald: Missed {n} kernel messages'.replace('{n}', '1847'), err: false },
+    { id: 0, text: '[ядро] ---[ конец паники ядра — не синхронизируется: фатальное исключение ]---', err: true },
+    { id: 1, text: 'systemd-journald: пропущено 1847 сообщений ядра', err: false },
   ])
   const bodyRef = useRef(null)
   const idRef = useRef(2)
@@ -66,7 +66,7 @@ function PanicConsole() {
       const batch = Array.from({ length: burst }, () => {
         const id = idRef.current++
         const text = randomPanicLine()
-        const err = /FATAL|error|failed|denied|fault|panic|DROP|KILL|INTRUSION/i.test(text)
+        const err = /КРИТИЧНО|ошибк|сбой|отклон|сегментац|паник|БЛОК|убит|ВТОРЖЕНИ|не пройдена|не достигнута/i.test(text)
         return { id, text, err }
       })
       setLines((prev) => [...prev, ...batch].slice(-40))
@@ -96,9 +96,9 @@ function PanicConsole() {
   return (
     <section className="panic-console">
       <div className="panic-console-head">
-        <span className="panel-tag">KERNEL</span>
+        <span className="panel-tag">ЯДРО</span>
         <span className="panic-console-title">Аварийный вывод системы</span>
-        <span className="panic-console-badge">FLOOD</span>
+        <span className="panic-console-badge">ПОТОК</span>
       </div>
       <div className="panic-console-body" ref={bodyRef}>
         {lines.map((line) => (
@@ -149,7 +149,7 @@ function UptimeChart({ label, host, uptime, crashAt, seed }) {
           <span className="chart-label">{label}</span>
           <span className="chart-host">{host}</span>
         </div>
-        <span className="chart-status">DOWN</span>
+        <span className="chart-status">СБОЙ</span>
       </div>
       <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} className="chart-svg" preserveAspectRatio="none">
         <defs>
@@ -175,7 +175,7 @@ function UptimeChart({ label, host, uptime, crashAt, seed }) {
         <circle cx={toX(POINTS - 1)} cy={toY(data[POINTS - 1])} r="2.5" className="chart-dot" />
       </svg>
       <div className="chart-foot">
-        <span>{uptime} / 24h</span>
+        <span>{uptime} / 24ч</span>
         <span className="chart-crash-label">↓ сбой</span>
       </div>
     </div>
@@ -211,10 +211,10 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [logLines, setLogLines] = useState([
-    '[BOOT] Аварийный терминал',
-    '[WARN] Вторжение обнаружено',
-    '[ERR ] Целостность: 12%',
-    '[INFO] Нужны 4 шарда',
+    '[ЗАГР] Аварийный терминал',
+    '[ПРЕД] Вторжение обнаружено',
+    '[ОШИБ] Целостность: 12%',
+    '[ИНФО] Нужны 4 шарда',
   ])
   const [tick, setTick] = useState(0)
 
@@ -238,12 +238,12 @@ export default function App() {
 
   const handleRestore = useCallback(async () => {
     if (keys.some((k) => !k.trim())) {
-      appendLog('ERR ', 'Введите все 4 шарда восстановления')
+      appendLog('ОШИБ', 'Введите все 4 шарда восстановления')
       return
     }
 
     setLoading(true)
-    appendLog('INFO', 'Отправка шардов на верификацию…')
+    appendLog('ИНФО', 'Отправка шардов на верификацию…')
 
     try {
       const res = await fetch(apiUrl('/restore'), {
@@ -260,20 +260,20 @@ export default function App() {
           const detail = data.detail
           if (typeof detail === 'string') {
             msg = detail === 'Not Found'
-              ? 'API не найден — проверьте деплой бэкенда на Vercel'
+              ? 'Сервер не найден — проверьте деплой бэкенда на Vercel'
               : detail
           } else if (Array.isArray(detail)) msg = detail.map((e) => e.msg).join('; ')
         } catch {
           if (text) msg = `Ошибка сервера (${res.status})`
         }
-        appendLog('ERR ', msg)
+        appendLog('ОШИБ', msg)
         return
       }
 
-      appendLog('OK  ', 'Целостность восстановлена')
+      appendLog('ОК  ', 'Целостность восстановлена')
       setSuccess(true)
     } catch {
-      appendLog('ERR ', 'Нет связи с сервером восстановления')
+      appendLog('ОШИБ', 'Нет связи с сервером восстановления')
     } finally {
       setLoading(false)
     }
@@ -298,7 +298,7 @@ export default function App() {
         <div className="header-left">
           <span className="status-dot" />
           <span className="header-status">КРИТИЧЕСКИЙ СБОЙ</span>
-          <span className="header-incident">INCIDENT ACTIVE</span>
+          <span className="header-incident">ИНЦИДЕНТ АКТИВЕН</span>
         </div>
         <div className="header-right">
           <span className="header-integrity">Целостность {integrity}%</span>
@@ -309,7 +309,7 @@ export default function App() {
       <main className="main">
         <section className="charts-section">
           <div className="section-head">
-            <span className="panel-tag">UPTIME</span>
+            <span className="panel-tag">ДОСТУПНОСТЬ</span>
             <span className="section-sub">последние 24ч — критические узлы упали недавно</span>
           </div>
           <div className="charts-grid">
@@ -325,7 +325,7 @@ export default function App() {
           <section className="panel keys-panel">
             <div className="panel-head-row">
               <div>
-                <span className="panel-tag">RECOVERY</span>
+                <span className="panel-tag">ВОССТАНОВЛЕНИЕ</span>
                 <h2>Шарды восстановления</h2>
               </div>
               <span className="shard-count">{filledCount}/4</span>
@@ -338,7 +338,7 @@ export default function App() {
                   <input
                     type="text"
                     className="key-input"
-                    placeholder="hex-ключ…"
+                    placeholder="ключ в hex…"
                     value={keys[i]}
                     onChange={(e) => handleKeyChange(i, e.target.value)}
                     spellCheck={false}
@@ -356,7 +356,7 @@ export default function App() {
           <section className="panel log-panel">
             <div className="panel-head-row">
               <div>
-                <span className="panel-tag">SYSLOG</span>
+                <span className="panel-tag">СИСЛОГ</span>
                 <h2>Журнал</h2>
               </div>
             </div>
@@ -365,8 +365,8 @@ export default function App() {
                 <div
                   key={i}
                   className={`log-line${
-                    line.includes('[ERR ') ? ' log-line-err' :
-                    line.includes('[OK  ') ? ' log-line-ok' : ''
+                    line.includes('[ОШИБ') ? ' log-line-err' :
+                    line.includes('[ОК  ') ? ' log-line-ok' : ''
                   }`}
                 >
                   {line}
@@ -378,7 +378,7 @@ export default function App() {
         </div>
       </main>
 
-      <footer className="footer">NODE-RECOVERY-07 // AWAITING INPUT</footer>
+      <footer className="footer">УЗЕЛ-ВОССТ-07 // ОЖИДАНИЕ ВВОДА</footer>
 
       {success && <SuccessModal />}
     </div>
